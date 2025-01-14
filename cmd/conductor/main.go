@@ -10,6 +10,7 @@ import (
 	"github.com/whookdev/conductor/internal/config"
 	"github.com/whookdev/conductor/internal/redis"
 	"github.com/whookdev/conductor/internal/server"
+	"github.com/whookdev/conductor/internal/tunnel"
 )
 
 func main() {
@@ -24,12 +25,17 @@ func main() {
 
 	rdb, err := redis.New(cfg)
 	if err != nil {
-		logger.Error("failed to create redis client", "error", nil)
+		logger.Error("failed to create redis client", "error", err)
 	}
 
-	srv, err := server.New(cfg)
+	tc, err := tunnel.New(cfg, rdb.Client)
 	if err != nil {
-		logger.Error("failed to create server", "error", nil)
+		logger.Error("failed to create tunnel coordinator", "error", err)
+	}
+
+	srv, err := server.New(cfg, tc)
+	if err != nil {
+		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
 	}
 

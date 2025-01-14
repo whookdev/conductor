@@ -11,7 +11,7 @@ import (
 
 type RedisServer struct {
 	cfg    *config.Config
-	client *redisi.Client
+	Client *redisi.Client
 	logger *slog.Logger
 }
 
@@ -27,13 +27,13 @@ func New(cfg *config.Config) (*RedisServer, error) {
 }
 
 func (rs *RedisServer) Start(ctx context.Context) error {
-	rs.client = redis.NewClient(&redis.Options{
+	rs.Client = redis.NewClient(&redis.Options{
 		Addr:     rs.cfg.RedisURL,
 		Password: "",
 		DB:       0,
 	})
 
-	if err := rs.client.Ping(ctx).Err(); err != nil {
+	if err := rs.Client.Ping(ctx).Err(); err != nil {
 		rs.logger.Error("failed to connect to redis", "error", err)
 		return err
 	}
@@ -43,8 +43,8 @@ func (rs *RedisServer) Start(ctx context.Context) error {
 }
 
 func (rs *RedisServer) Stop() error {
-	if rs.client != nil {
-		if err := rs.client.Close(); err != nil {
+	if rs.Client != nil {
+		if err := rs.Client.Close(); err != nil {
 			rs.logger.Error("failed to close redis connection", "error", err)
 			return err
 		}

@@ -9,23 +9,23 @@ import (
 	"time"
 
 	"github.com/whookdev/conductor/internal/config"
+	"github.com/whookdev/conductor/internal/tunnel"
 )
 
 type Server struct {
-	cfg *config.Config
-	// tunnelManager *tunnel.Manager
-	server *http.Server
-	logger *slog.Logger
+	cfg               *config.Config
+	tunnelCoordinator *tunnel.Coordinator
+	server            *http.Server
+	logger            *slog.Logger
 }
 
-func New(cfg *config.Config) (*Server, error) {
+func New(cfg *config.Config, tc *tunnel.Coordinator) (*Server, error) {
 	logger := slog.With("component", "server")
 
-	// tunnel manager
-
 	s := &Server{
-		cfg:    cfg,
-		logger: logger,
+		cfg:               cfg,
+		tunnelCoordinator: tc,
+		logger:            logger,
 	}
 
 	s.server = &http.Server{
@@ -50,6 +50,7 @@ func (s *Server) routes() http.Handler {
 func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	if !strings.HasSuffix(host, s.cfg.BaseDomain) {
+		s.logger.Error("invalid domain")
 		http.Error(w, "Invalid domain", http.StatusBadRequest)
 	}
 
@@ -59,6 +60,17 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 		"method", r.Method,
 		"path", r.URL.Path,
 	)
+
+	// Let's assign a server
+	tUrl, err := s.tunnelCoordinator.AssignTunnelServer(projectName)
+	if err != nil {
+		s.logger.Error("unable to assign tunnel server for", "projectName", "error", err)
+		http.Error(w, "Unable to assign tunnel server", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"tunnelUrl":"%s"}`, tUrl)
 }
 
 func (s *Server) Start(ctx context.Context) error {

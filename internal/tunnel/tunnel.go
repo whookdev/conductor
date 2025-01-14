@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/whookdev/conductor/internal/config"
 )
 
-type TunnelCoordinator struct {
-	redisConn interface{}
+type Coordinator struct {
+	cfg    *config.Config
+	rdb    *redis.Client
+	logger *slog.Logger
 }
 
 type ServerInfo struct {
@@ -18,8 +24,20 @@ type ServerInfo struct {
 	Load          int
 }
 
-func (tc *TunnelCoordinator) AssignTunnelServer(tunnelID string) (string, error) {
-	serverInfos, err := tc.redisConn.HGetAll(context.Background(), "tunnel_servers").Result()
+func New(cfg *config.Config, redis *redis.Client) (*Coordinator, error) {
+	logger := slog.With("component", "tunnel_coordinator")
+
+	tc := &Coordinator{
+		cfg:    cfg,
+		logger: logger,
+		rdb:    redis,
+	}
+
+	return tc, nil
+}
+
+func (tc *Coordinator) AssignTunnelServer(tunnelID string) (string, error) {
+	serverInfos, err := tc.rdb.HGetAll(context.Background(), "tunnel_servers").Result()
 	if err != nil {
 		return "", fmt.Errorf("failed to get server info: %w", err)
 	}
@@ -45,7 +63,7 @@ func (tc *TunnelCoordinator) AssignTunnelServer(tunnelID string) (string, error)
 		return "", errors.New("no available tunnel servers")
 	}
 
-	err = tc.redisConn.HSet(context.Background(),
+	err = tc.rdb.HSet(context.Background(),
 		"tunnel_assignments",
 		tunnelID,
 		selectedServer,
