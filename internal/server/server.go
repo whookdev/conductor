@@ -8,24 +8,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/whookdev/conductor/internal/conductor"
 	"github.com/whookdev/conductor/internal/config"
-	"github.com/whookdev/conductor/internal/tunnel"
 )
 
 type Server struct {
-	cfg               *config.Config
-	tunnelCoordinator *tunnel.Coordinator
-	server            *http.Server
-	logger            *slog.Logger
+	cfg       *config.Config
+	conductor *conductor.Conductor
+	server    *http.Server
+	logger    *slog.Logger
 }
 
-func New(cfg *config.Config, tc *tunnel.Coordinator) (*Server, error) {
-	logger := slog.With("component", "server")
+func New(cfg *config.Config, tc *conductor.Conductor, logger *slog.Logger) (*Server, error) {
+	logger = logger.With("component", "server")
 
 	s := &Server{
-		cfg:               cfg,
-		tunnelCoordinator: tc,
-		logger:            logger,
+		cfg:       cfg,
+		conductor: tc,
+		logger:    logger,
 	}
 
 	s.server = &http.Server{
@@ -62,15 +62,16 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Let's assign a server
-	tUrl, err := s.tunnelCoordinator.AssignTunnelServer(projectName)
+	tUrl, err := s.conductor.AssignTunnelServer(projectName)
 	if err != nil {
-		s.logger.Error("unable to assign tunnel server for", "projectName", "error", err)
+		s.logger.Error("unable to assign tunnel server for", "projectName", fmt.Errorf("%w", err))
 		http.Error(w, "Unable to assign tunnel server", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"tunnelUrl":"%s"}`, tUrl)
+
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -86,7 +87,7 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) Shutdown() error {
-	s.logger.Info("shuttong down server")
+	s.logger.Info("shutting down server")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

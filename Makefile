@@ -24,6 +24,11 @@ COLOR_GREEN = \033[32m
 .PHONY: all
 all: clean build
 
+.PHONY: run
+run: ## Run the project locally
+	@printf "$(COLOR_CYAN)Running \"$(BINARY_NAME)\"\n"
+	@go run "$(MAIN_PACKAGE)/main.go"
+
 .PHONY: set-version
 set-version:
 	@printf "$(COLOR_CYAN)Setting version information...$(COLOR_RESET)\n"

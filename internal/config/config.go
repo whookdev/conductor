@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -19,6 +21,8 @@ type Config struct {
 }
 
 func NewConfig() (*Config, error) {
+	godotenv.Load()
+
 	port, err := strconv.Atoi(getEnvWithDefault("PORT", "3000"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid port: %w", err)

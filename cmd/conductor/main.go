@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/whookdev/conductor/internal/conductor"
 	"github.com/whookdev/conductor/internal/config"
 	"github.com/whookdev/conductor/internal/redis"
 	"github.com/whookdev/conductor/internal/server"
-	"github.com/whookdev/conductor/internal/tunnel"
 )
 
 func main() {
@@ -23,19 +23,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	rdb, err := redis.New(cfg)
+	rdb, err := redis.New(cfg, logger)
 	if err != nil {
 		logger.Error("failed to create redis client", "error", err)
-	}
-
-	tc, err := tunnel.New(cfg, rdb.Client)
-	if err != nil {
-		logger.Error("failed to create tunnel coordinator", "error", err)
-	}
-
-	srv, err := server.New(cfg, tc)
-	if err != nil {
-		logger.Error("failed to create server", "error", err)
 		os.Exit(1)
 	}
 
@@ -55,6 +45,18 @@ func main() {
 		os.Exit(1)
 	}
 	defer rdb.Stop()
+
+	c, err := conductor.New(cfg, rdb.Client, logger)
+	if err != nil {
+		logger.Error("failed to create tunnel coordinator", "error", err)
+		os.Exit(1)
+	}
+
+	srv, err := server.New(cfg, c, logger)
+	if err != nil {
+		logger.Error("failed to create server", "error", err)
+		os.Exit(1)
+	}
 
 	if err := srv.Start(ctx); err != nil {
 		logger.Error("server error", "error", err)

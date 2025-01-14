@@ -15,8 +15,8 @@ type RedisServer struct {
 	logger *slog.Logger
 }
 
-func New(cfg *config.Config) (*RedisServer, error) {
-	logger := slog.With("component", "redis")
+func New(cfg *config.Config, logger *slog.Logger) (*RedisServer, error) {
+	logger = logger.With("component", "redis")
 
 	rs := &RedisServer{
 		cfg:    cfg,
