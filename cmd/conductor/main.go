@@ -52,6 +52,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	c.StartCleanupRoutine(ctx)
+
 	srv, err := server.New(cfg, c, logger)
 	if err != nil {
 		logger.Error("failed to create server", "error", err)

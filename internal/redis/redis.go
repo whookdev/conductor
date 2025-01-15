@@ -38,7 +38,7 @@ func (rs *RedisServer) Start(ctx context.Context) error {
 		return err
 	}
 
-	rs.logger.Info("redis connection established successfully", "addr", rs.cfg.RedisURL)
+	rs.logger.Info("redis connection established", "addr", rs.cfg.RedisURL)
 	return nil
 }
 
