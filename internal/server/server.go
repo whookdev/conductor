@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -50,28 +51,78 @@ func (s *Server) routes() http.Handler {
 func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	if !strings.HasSuffix(host, s.cfg.BaseDomain) {
-		s.logger.Error("invalid domain")
+		s.logger.Warn("request with invalid domain",
+			"host", host,
+			"expected_domain", s.cfg.BaseDomain,
+			"remote_addr", r.RemoteAddr)
 		http.Error(w, "Invalid domain", http.StatusBadRequest)
+		return
 	}
 
-	projectName := strings.TrimSuffix(host, "."+s.cfg.BaseDomain)
-	s.logger.Info("received request",
-		"project", projectName,
-		"method", r.Method,
-		"path", r.URL.Path,
+	if strings.HasPrefix(host, "api.") {
+		if r.Method == http.MethodPost && r.URL.Path == "/tunnel" {
+			s.handleTunnelAssignment(w, r)
+			return
+		}
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	s.handleProjectRequest(w, r)
+}
+
+func (s *Server) handleTunnelAssignment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProjectName string `json:"project_name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error("failed to decode request body", "error", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	}
+	defer r.Body.Close()
+
+	if req.ProjectName == "" {
+		s.logger.Error("missing project name in request")
+		http.Error(w, "project_name is required", http.StatusBadRequest)
+	}
+
+	s.logger.Info("assigning tunnel",
+		"project", req.ProjectName,
 	)
 
-	// Let's assign a server
-	tUrl, err := s.conductor.AssignTunnelServer(projectName)
+	tUrl, err := s.conductor.AssignTunnelServer(req.ProjectName)
 	if err != nil {
-		s.logger.Error("unable to assign tunnel server for", "projectName", fmt.Errorf("%w", err))
+		s.logger.Error("unable to assign tunnel server",
+			"project", req.ProjectName,
+			"error", err)
 		http.Error(w, "Unable to assign tunnel server", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"tunnelUrl":"%s"}`, tUrl)
+	fmt.Fprintf(w, `{"tunnel_url":"%s"}`, tUrl)
+}
 
+func (s *Server) handleProjectRequest(w http.ResponseWriter, r *http.Request) {
+	projectName := strings.TrimSuffix(r.Host, "."+s.cfg.BaseDomain)
+	s.logger.Info("handling project request",
+		"project", projectName,
+		"method", r.Method,
+		"path", r.URL.Path,
+	)
+
+	relayURL, err := s.conductor.GetProjectRelayServer(projectName)
+	if err != nil {
+		s.logger.Error("unable to get relay server",
+			"project", projectName,
+			"error", err)
+		http.Error(w, "Unable to process request", http.StatusInternalServerError)
+		return
+	}
+	s.logger.Info("Relay url found", "relay_url", relayURL)
+
+	http.Error(w, "Forwarding not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) Start(ctx context.Context) error {

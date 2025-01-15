@@ -22,6 +22,7 @@ type Conductor struct {
 type ServerInfo struct {
 	LastHeartbeat time.Time `json:"last_heartbeat"`
 	Load          int       `json:"load"`
+	RelayUrl      string    `json:"relay_url"`
 }
 
 func New(cfg *config.Config, redis *redis.Client, logger *slog.Logger) (*Conductor, error) {
@@ -43,7 +44,7 @@ func New(cfg *config.Config, redis *redis.Client, logger *slog.Logger) (*Conduct
 	return tc, nil
 }
 
-func (c *Conductor) AssignTunnelServer(tunnelID string) (string, error) {
+func (c *Conductor) AssignTunnelServer(projectName string) (string, error) {
 	serverInfos, err := c.rdb.HGetAll(context.Background(), c.cfg.RelayRegistryKey).Result()
 	if err != nil {
 		return "", fmt.Errorf("failed to get server info: %w", err)
@@ -76,10 +77,37 @@ func (c *Conductor) AssignTunnelServer(tunnelID string) (string, error) {
 	}
 
 	err = c.rdb.HSet(context.Background(),
-		"tunnel_assignments",
-		tunnelID,
+		c.cfg.RelayAssignmentKey,
+		projectName,
 		selectedServer,
 	).Err()
 
 	return selectedServer, err
+}
+
+func (c *Conductor) GetProjectRelayServer(projectName string) (string, error) {
+	relayServer, err := c.rdb.HGet(context.Background(),
+		c.cfg.RelayAssignmentKey,
+		projectName).Result()
+	if err != nil {
+		return "", fmt.Errorf("unable to find relay server assigned to project: %w", err)
+	}
+
+	var serverInfo ServerInfo
+	info, err := c.rdb.HGet(context.Background(),
+		c.cfg.RelayRegistryKey,
+		relayServer).Result()
+	if err != nil {
+		return "", fmt.Errorf("unable to fetch relay server info: %w", err)
+	}
+
+	if err := json.Unmarshal([]byte(info), &serverInfo); err != nil {
+		return "", fmt.Errorf("failed to unmarshal server info")
+	}
+
+	if serverInfo.RelayUrl == "" {
+		return "", errors.New("server info does not contain a relay url")
+	}
+
+	return serverInfo.RelayUrl, nil
 }

@@ -3,6 +3,7 @@ BINARY_NAME=conductor
 MAIN_PACKAGE=./cmd/conductor
 DIST_DIR=dist
 VERSION_PKG=internal/version/version.go
+MIGRATIONS_DIR=./migrations
 
 # Get version from git tags, fallback to dev if no tags exist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -23,11 +24,6 @@ COLOR_GREEN = \033[32m
 
 .PHONY: all
 all: clean build
-
-.PHONY: run
-run: ## Run the project locally
-	@printf "$(COLOR_CYAN)Running \"$(BINARY_NAME)\"\n"
-	@go run "$(MAIN_PACKAGE)/main.go"
 
 .PHONY: set-version
 set-version:
@@ -115,12 +111,38 @@ dev: set-version ## Build and run for development
 	@printf "$(COLOR_CYAN)Building and running for development...$(COLOR_RESET)\n"
 	@go run $(GOFLAGS) $(MAIN_PACKAGE)
 
+.PHONY: migrate-up
+migrate-up: ## Run database migrations
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found"; \
+		exit 1; \
+	fi
+	@eval $$(cat .env | grep POSTGRES_URL) && \
+	migrate -database "$$POSTGRES_URL" -path $(MIGRATIONS_DIR) up
+
+.PHONY: migrate-down
+migrate-down: ## Rollback most recent migration
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found"; \
+		exit 1; \
+	fi
+	@eval $$(cat .env | grep POSTGRES_URL) && \
+	migrate -database "$$POSTGRES_URL" -path $(MIGRATIONS_DIR) down
+.PHONY: migrate-create
+migrate-create: ## Create a new migration file
+ifndef name
+	$(error Migration name is required. Usage: make migrate-create name=<migration-name>)
+endif
+	@migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(name)
+
+
 .PHONY: help
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*##"; printf "\033[36m"} /^[a-zA-Z_-]+:.*?##/ { printf "  %-15s %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } END {printf "\033[0m"}' $(MAKEFILE_LIST)
+
 
 # Set default goal to help
 .DEFAULT_GOAL := help
