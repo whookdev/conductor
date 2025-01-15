@@ -15,6 +15,9 @@ type Config struct {
 	PostgresURL string
 	RedisURL    string
 
+	RelayRegistryKey   string
+	RelayAssignmentKey string
+
 	BaseDomain string
 
 	IsDevelopment bool
@@ -29,12 +32,14 @@ func NewConfig() (*Config, error) {
 	}
 
 	return &Config{
-		Port:          port,
-		Host:          getEnvWithDefault("HOST", "0.0.0.0"),
-		PostgresURL:   requireEnv("POSTGRES_URL"),
-		RedisURL:      requireEnv("REDIS_URL"),
-		BaseDomain:    getEnvWithDefault("BASE_DOMAIN", "whook.dev"),
-		IsDevelopment: getEnvWithDefault("ENVIRONMENT", "development") == "development",
+		Port:               port,
+		Host:               getEnvWithDefault("HOST", "0.0.0.0"),
+		PostgresURL:        requireEnv("POSTGRES_URL"),
+		RedisURL:           requireEnv("REDIS_URL"),
+		RelayRegistryKey:   getEnvWithDefault("RELAY_REGISTRY_KEY", "relay_servers"),
+		RelayAssignmentKey: getEnvWithDefault("RELAY_ASSIGNMENT_KEY", "relay_assignments"),
+		BaseDomain:         getEnvWithDefault("BASE_DOMAIN", "whook.dev"),
+		IsDevelopment:      getEnvWithDefault("ENVIRONMENT", "development") == "development",
 	}, nil
 }
 
