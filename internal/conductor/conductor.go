@@ -111,6 +111,10 @@ func (c *Conductor) GetProjectRelayServer(projectName string) (string, error) {
 	return serverInfo.RelayUrl, nil
 }
 
+// TODO: Consider moving this to a separate service, as there will be multiple
+// conductors running in production, started at different times, we could run
+// into the scenario where relays are getting reassigned when they're still
+// alive, which would leave them in a unusable stat
 func (c *Conductor) StartCleanupRoutine(ctx context.Context) chan struct{} {
 	done := make(chan struct{})
 
