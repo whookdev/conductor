@@ -44,7 +44,7 @@ func New(cfg *config.Config, redis *redis.Client, logger *slog.Logger) (*Conduct
 	return tc, nil
 }
 
-func (c *Conductor) AssignTunnelServer(projectName string) (string, error) {
+func (c *Conductor) AssignRelayServer(projectName string) (string, error) {
 	serverInfos, err := c.rdb.HGetAll(context.Background(), c.cfg.RelayRegistryKey).Result()
 	if err != nil {
 		return "", fmt.Errorf("failed to get server info: %w", err)
@@ -73,7 +73,7 @@ func (c *Conductor) AssignTunnelServer(projectName string) (string, error) {
 	}
 
 	if selectedServer == "" {
-		return "", errors.New("no available tunnel servers")
+		return "", errors.New("no available relay servers")
 	}
 
 	err = c.rdb.HSet(context.Background(),
