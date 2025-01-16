@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -48,7 +47,7 @@ func (h *ProjectHandler) HandleRelayAssignment(w http.ResponseWriter, r *http.Re
 
 	h.logger.Info("assigning relay", "project", req.ProjectName)
 
-	rUrl, err := h.conductor.AssignRelayServer(req.ProjectName)
+	rAssignment, err := h.conductor.AssignRelayServer(req.ProjectName)
 	if err != nil {
 		h.logger.Error("unable to assign relay server",
 			"project", req.ProjectName,
@@ -59,7 +58,11 @@ func (h *ProjectHandler) HandleRelayAssignment(w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"relay_url": "%s"}`, rUrl)
+	if err := json.NewEncoder(w).Encode(rAssignment); err != nil {
+		h.logger.Error("failed to encode response", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *ProjectHandler) HandleProjectRequest(w http.ResponseWriter, r *http.Request) {
@@ -87,8 +90,7 @@ func (h *ProjectHandler) HandleProjectRequest(w http.ResponseWriter, r *http.Req
 		//out what the ideal flow is here - is it better to 'lie' to the caller and
 		//claim everything is OK, or do we inform it that the downstream service
 		//was unreachable? If we 'lie', we can then store these messages in a queue
-		//for when a relay server is accessible again? We should also add some
-		//fault tolerance that tries to reassign a project to a relay server
+		//for when a relay server is accessible again?
 		http.Error(w, "Unable to process request", http.StatusInternalServerError)
 		return
 	}
@@ -96,4 +98,31 @@ func (h *ProjectHandler) HandleProjectRequest(w http.ResponseWriter, r *http.Req
 	h.logger.Info("relay URL found", "relay_url", relayURL)
 
 	ForwardRequest(w, r, relayURL, h.cfg.BaseDomain, h.logger)
+}
+
+func (h *ProjectHandler) HandleRelayRequest(w http.ResponseWriter, r *http.Request) {
+	projectName := r.URL.Query().Get("project_name")
+	if projectName == "" {
+		h.logger.Error("missing project name in request")
+		http.Error(w, "project_name is required", http.StatusBadRequest)
+		return
+	}
+	h.logger.Info("assigning relay", "project", projectName)
+
+	rAssignment, err := h.conductor.GetProjectRelayServer(projectName)
+	if err != nil {
+		h.logger.Error("unable to assign relay server",
+			"project", projectName,
+			"error", err,
+		)
+		http.Error(w, "Unable to assign relay server", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(rAssignment); err != nil {
+		h.logger.Error("failed to encode response", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }
