@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -17,16 +18,20 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
+	if err := initiateApp(logger); err != nil {
+		logger.Error("error in app lifecycle", "error", err)
+	}
+}
+
+func initiateApp(logger *slog.Logger) error {
 	cfg, err := config.NewConfig()
 	if err != nil {
-		logger.Error("failed to load configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("loading configuration: %w", err)
 	}
 
 	rdb, err := redis.New(cfg, logger)
 	if err != nil {
-		logger.Error("failed to create redis client", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("creating redis client: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -41,27 +46,30 @@ func main() {
 	}()
 
 	if err := rdb.Start(ctx); err != nil {
-		logger.Error("unable to connect to redis server", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("reaching redis server: %w", err)
 	}
-	defer rdb.Stop()
+	defer func() error {
+		if err := rdb.Stop(); err != nil {
+			return fmt.Errorf("stopping redis client: %w", err)
+		}
+		return nil
+	}()
 
 	c, err := conductor.New(cfg, rdb.Client, logger)
 	if err != nil {
-		logger.Error("failed to create tunnel coordinator", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("creating coordinator: %w", err)
 	}
 
 	c.StartCleanupRoutine(ctx)
 
 	srv, err := server.New(cfg, c, logger)
 	if err != nil {
-		logger.Error("failed to create server", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("creating HTTP server: %w", err)
 	}
 
 	if err := srv.Start(ctx); err != nil {
-		logger.Error("server error", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("starting server: %w", err)
 	}
+
+	return nil
 }
