@@ -16,7 +16,16 @@ func ForwardRequest(w http.ResponseWriter, r *http.Request, relayURL string, bas
 		relayURL = "http://" + relayURL
 	}
 
+	// Get the project name from the host
+	projectName := strings.TrimSuffix(r.Host, "."+baseDomain)
+
+	// Create the target URL with project query parameter
 	targetURL := fmt.Sprintf("%s%s", relayURL, r.URL.RequestURI())
+	if strings.Contains(targetURL, "?") {
+		targetURL += "&project=" + projectName
+	} else {
+		targetURL += "?project=" + projectName
+	}
 
 	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
 	if err != nil {
@@ -33,7 +42,7 @@ func ForwardRequest(w http.ResponseWriter, r *http.Request, relayURL string, bas
 
 	proxyReq.Header.Set("X-Forwarded-Host", r.Host)
 	proxyReq.Header.Set("X-Original-URL", r.URL.String())
-	proxyReq.Header.Set("X-Project-Name", strings.TrimSuffix(r.Host, "."+baseDomain)) // TODO: Just send the bloody project name in
+
 	proxyReq.Header.Set("X-Received-At", fmt.Sprintf("%d", time.Now().Unix()))
 
 	client := &http.Client{}
