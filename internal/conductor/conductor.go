@@ -180,7 +180,7 @@ func (c *Conductor) cleanupDeadRelays() error {
 		var serverInfo ServerInfo
 		json.Unmarshal([]byte(info), &serverInfo)
 
-		if time.Since(serverInfo.LastHeartbeat) > 30*time.Second {
+		if time.Since(serverInfo.LastHeartbeat) > 60*time.Second {
 			c.logger.Warn("relay unreachable", "relay_id", serverID)
 			c.reassignRelay(serverID)
 			c.rdb.HDel(context.Background(), c.cfg.RelayRegistryKey, serverID)
